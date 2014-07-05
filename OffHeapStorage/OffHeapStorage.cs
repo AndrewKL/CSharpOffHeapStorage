@@ -30,7 +30,13 @@ namespace OffHeapStorage
             //{
             //    spec.Add(i+1, props[i].Name);
             //}
-            Serializer.Serialize<IEnumerable<T>>(_stream, input);
+            RegisterType(typeof(T));
+
+            foreach (var obj in input)
+            {
+                Serializer.Serialize<T>(_stream, obj);
+            }
+            //Serializer.Serialize<IEnumerable<T>>(_stream, input);
         }       
 
         public IEnumerator<T> GetEnumerator()
@@ -43,5 +49,21 @@ namespace OffHeapStorage
         {
             return GetEnumerator();
         }
+
+        private static Dictionary<Type,ObjectSerializationInfo> TypeData = new Dictionary<Type, ObjectSerializationInfo>(); 
+        public void RegisterType(Type type)
+        {
+            if (!TypeData.ContainsKey(type))
+            {
+                TypeData.Add(type,new ObjectSerializationInfo(type));
+            }
+        }
+
+        public void Serialize(T obj)
+        {
+            
+        }
     }
+
+    
 }
