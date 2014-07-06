@@ -13,17 +13,17 @@ namespace OffHeapStorage
 {
     public class OffHeapIEnumerable<T> : IEnumerable<T>
     {
-        private readonly MemoryStream _stream;
+        private readonly Stream _stream;
         private Serializer<T> _serializer;
 
         public OffHeapIEnumerable(IEnumerable<T> input)
         {
-            _stream = new MemoryStream();
+            _stream = new MemoryTributary();
             _serializer = new Serializer<T>(_stream);
 
             foreach (var obj in input)
             {
-                _serializer.Serialize<T>(_stream, obj);
+                _serializer.Serialize(obj);
             }
         }       
 

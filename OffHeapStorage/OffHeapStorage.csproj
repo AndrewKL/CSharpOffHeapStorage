@@ -44,6 +44,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="MemoryTributary.cs" />
     <Compile Include="ObjectSerializationInformation.cs" />
     <Compile Include="OffHeapStorage.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

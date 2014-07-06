@@ -23,7 +23,7 @@ namespace OffHeapStorage
         }
 
 
-        public void Serialize<T1>(MemoryStream stream, T obj)
+        public void Serialize(T obj)
         {
             foreach (var prop in serializationInfo.PropertyList)
             {
