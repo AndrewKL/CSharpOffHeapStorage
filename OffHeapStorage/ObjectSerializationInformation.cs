@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.SqlTypes;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
@@ -16,11 +17,13 @@ namespace OffHeapStorage
 
         public ObjectSerializationInfo(Type type)
         {
-            var props = type.GetTypeInfo().DeclaredProperties.Where(x =>
+            var typeInfo = type.GetTypeInfo();
+            var props = typeInfo.DeclaredProperties.Where(x =>
                    x.PropertyType == typeof(int)
                 || x.PropertyType == typeof(string)
                 || x.PropertyType == typeof(decimal)
                 || x.PropertyType == typeof(float)
+                || x.PropertyType == typeof(double)
                 || x.PropertyType == typeof(bool)).ToList();
 
             PropertyList = new List<PropertySerializationInfo>();
@@ -31,16 +34,27 @@ namespace OffHeapStorage
                 {
                     PropertyInfo = prop,
                     Getter = BuildGetterLambda(prop,type),
-                    Setter = BuildSetter(prop,type)
+                    Setter = BuildSetter(prop,type),
+                    PropType = PropertySerializationInfo.MapTypeToTypeEnum[prop.PropertyType]
                 });
             }
+            var types = new Type[0];
+            Constructor = GetConstructor(typeInfo);
         }
+
+        public static Func<object> GetConstructor(TypeInfo typeInfo)
+        {
+            var types = new Type[0];
+            var expr = Expression.New(typeInfo.GetConstructor(types));
+
+            return Expression.Lambda<Func<object>>(expr).Compile();
+        } 
 
         public static Func<object, object> BuildGetterLambda(PropertyInfo propertyInfo,Type objectType)
         {
             ParameterExpression arg = Expression.Parameter(typeof(object), "x");
 
-            Expression expr = Expression.Property(Expression.Convert(arg,objectType), "Name");
+            Expression expr = Expression.Convert( Expression.Property(Expression.Convert(arg, objectType), propertyInfo.Name), typeof(object));;
 
             return Expression.Lambda<Func<object, object>>(expr, arg).Compile();
         }
@@ -64,7 +78,22 @@ namespace OffHeapStorage
         public PropertyInfo PropertyInfo { get; set; }
         public Action<object, object> Setter { get; set; }
         public Func<object, object> Getter { get; set; }
+        public PropertySerializationTypeEnum PropType { get; set; }
 
-
+        public static Dictionary<Type,PropertySerializationTypeEnum> MapTypeToTypeEnum 
+            = new Dictionary<Type, PropertySerializationTypeEnum>()
+            {
+                {typeof(Int32),PropertySerializationTypeEnum.Int32},
+                {typeof(Boolean),PropertySerializationTypeEnum.Bool},
+                {typeof(decimal),PropertySerializationTypeEnum.Decimal},
+                {typeof(String),PropertySerializationTypeEnum.String},
+                {typeof(float),PropertySerializationTypeEnum.Float},
+                {typeof(double),PropertySerializationTypeEnum.Double},
+            };
+    }
+   
+    public enum PropertySerializationTypeEnum
+    {
+        none, Int32,Bool,Decimal,String,Float, Double
     }
 }

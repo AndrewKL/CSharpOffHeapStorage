@@ -14,35 +14,22 @@ namespace OffHeapStorage
     public class OffHeapIEnumerable<T> : IEnumerable<T>
     {
         private readonly MemoryStream _stream;
-        //private BinaryFormatter _binaryFormatter;
+        private Serializer<T> _serializer;
 
         public OffHeapIEnumerable(IEnumerable<T> input)
         {
             _stream = new MemoryStream();
-
-            //var spec = RuntimeTypeModel.Default.Add(typeof(T), true);
-            //var props = typeof(T).GetTypeInfo().DeclaredProperties.Where(x =>
-            //    x.PropertyType == typeof (int)
-            //    || x.PropertyType == typeof (string)
-            //    || x.PropertyType == typeof (decimal)).ToList();
-
-            //for(var i = 0;i<props.Count;i++ )
-            //{
-            //    spec.Add(i+1, props[i].Name);
-            //}
-            RegisterType(typeof(T));
+            _serializer = new Serializer<T>(_stream);
 
             foreach (var obj in input)
             {
-                Serializer.Serialize<T>(_stream, obj);
+                _serializer.Serialize<T>(_stream, obj);
             }
-            //Serializer.Serialize<IEnumerable<T>>(_stream, input);
         }       
 
         public IEnumerator<T> GetEnumerator()
         {
-            _stream.Position = 0;
-            return Serializer.Deserialize<IEnumerator<T>>(_stream);
+            return _serializer.DeserializeStream().GetEnumerator();
         }
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
@@ -50,19 +37,7 @@ namespace OffHeapStorage
             return GetEnumerator();
         }
 
-        private static Dictionary<Type,ObjectSerializationInfo> TypeData = new Dictionary<Type, ObjectSerializationInfo>(); 
-        public void RegisterType(Type type)
-        {
-            if (!TypeData.ContainsKey(type))
-            {
-                TypeData.Add(type,new ObjectSerializationInfo(type));
-            }
-        }
 
-        public void Serialize(T obj)
-        {
-            
-        }
     }
 
     
