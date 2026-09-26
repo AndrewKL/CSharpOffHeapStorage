@@ -21,6 +21,7 @@ namespace OffHeapStorage.Benchmark
         public int Count;
         public double BuildMs;
         public double EnumerateMs;
+        public long EnumerateAllocatedBytes;
         public double BuildGcPauseMs;
         public int Gen0, Gen1, Gen2;
         public long ManagedBytes;
@@ -46,6 +47,7 @@ namespace OffHeapStorage.Benchmark
             {
                 Run("warmup", 100_000, items => items.ToList(), s => 0);
                 Run("warmup", 100_000, items => new OffHeapIEnumerable<Record>(items), s => s.AllocatedBytes, dispose: true);
+                Run("warmup", 100_000, items => new TypedOffHeapIEnumerable<Record>(items), s => s.AllocatedBytes, dispose: true);
             }
 
             var results = new List<Result>();
@@ -53,14 +55,15 @@ namespace OffHeapStorage.Benchmark
             {
                 results.Add(Run("List<T> (on heap)", size, items => items.ToList(), s => 0));
                 results.Add(Run("OffHeapIEnumerable", size, items => new OffHeapIEnumerable<Record>(items), s => s.AllocatedBytes, dispose: true));
+                results.Add(Run("TypedOffHeapIEnumerable", size, items => new TypedOffHeapIEnumerable<Record>(items), s => s.AllocatedBytes, dispose: true));
             }
 
             Console.WriteLine();
-            Console.WriteLine("| Storage | Items | Build ms | Enumerate ms | GC pause during build ms | GCs gen0/1/2 | Managed heap | Native memory | Full GC with data live ms |");
-            Console.WriteLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|");
+            Console.WriteLine("| Storage | Items | Build ms | Enumerate ms | Allocated while enumerating | GC pause during build ms | GCs gen0/1/2 | Managed heap | Native memory | Full GC with data live ms |");
+            Console.WriteLine("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
             foreach (var r in results)
             {
-                Console.WriteLine($"| {r.Storage} | {r.Count:N0} | {r.BuildMs:N0} | {r.EnumerateMs:N0} | {r.BuildGcPauseMs:N0} | " +
+                Console.WriteLine($"| {r.Storage} | {r.Count:N0} | {r.BuildMs:N0} | {r.EnumerateMs:N0} | {Mb(r.EnumerateAllocatedBytes)} | {r.BuildGcPauseMs:N0} | " +
                                   $"{r.Gen0}/{r.Gen1}/{r.Gen2} | {Mb(r.ManagedBytes)} | {Mb(r.NativeBytes)} | {r.FullGcMs:N1} |");
             }
         }
@@ -102,12 +105,14 @@ namespace OffHeapStorage.Benchmark
                 Gen2 = GC.CollectionCount(2) - gen2,
             };
 
+            long allocated = GC.GetAllocatedBytesForCurrentThread();
             sw.Restart();
             long checksum = 0;
             foreach (var r in storage)
                 checksum += r.Id + r.Name.Length;
             sw.Stop();
             result.EnumerateMs = sw.Elapsed.TotalMilliseconds;
+            result.EnumerateAllocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocated;
 
             result.ManagedBytes = LiveManagedBytes() - baseline;
             result.NativeBytes = nativeBytes(storage);

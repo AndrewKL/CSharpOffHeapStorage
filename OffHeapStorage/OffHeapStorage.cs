@@ -10,12 +10,17 @@ namespace OffHeapStorage
     public class OffHeapIEnumerable<T> : IEnumerable<T>, IDisposable
     {
         private readonly MemoryTributary _stream;
-        private Serializer<T> _serializer;
+        private ISerializer<T> _serializer;
 
         public OffHeapIEnumerable(IEnumerable<T> input)
+            : this(input, stream => new Serializer<T>(stream))
+        {
+        }
+
+        protected OffHeapIEnumerable(IEnumerable<T> input, Func<Stream, ISerializer<T>> createSerializer)
         {
             _stream = new MemoryTributary();
-            _serializer = new Serializer<T>(_stream);
+            _serializer = createSerializer(_stream);
 
             foreach (var obj in input)
             {
@@ -54,6 +59,17 @@ namespace OffHeapStorage
             _stream.Dispose();
         }
 
+    }
+
+    /// <summary>
+    /// OffHeapIEnumerable using TypedSerializer, which reads and writes whole objects without boxing
+    /// </summary>
+    public class TypedOffHeapIEnumerable<T> : OffHeapIEnumerable<T>
+    {
+        public TypedOffHeapIEnumerable(IEnumerable<T> input)
+            : base(input, stream => new TypedSerializer<T>(stream))
+        {
+        }
     }
 
     

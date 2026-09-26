@@ -15,11 +15,7 @@ namespace OffHeapStorage
         public ObjectSerializationInfo(Type type)
         {
             var typeInfo = type.GetTypeInfo();
-            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(x => x.CanRead && x.CanWrite
-                    && x.GetIndexParameters().Length == 0
-                    && PropertySerializationInfo.MapTypeToTypeEnum.ContainsKey(x.PropertyType))
-                .ToList();
+            var props = GetSerializableProperties(type);
 
             PropertyList = new List<PropertySerializationInfo>();
 
@@ -34,6 +30,18 @@ namespace OffHeapStorage
                 });
             }
             Constructor = GetConstructor(typeInfo);
+        }
+
+        /// <summary>
+        /// Public read/write instance properties of a supported type, in the order they are serialized
+        /// </summary>
+        public static List<PropertyInfo> GetSerializableProperties(Type type)
+        {
+            return type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(x => x.CanRead && x.CanWrite
+                    && x.GetIndexParameters().Length == 0
+                    && PropertySerializationInfo.MapTypeToTypeEnum.ContainsKey(x.PropertyType))
+                .ToList();
         }
 
         public static Func<object> GetConstructor(TypeInfo typeInfo)

@@ -26,6 +26,11 @@ namespace OffHeapStorage.tests
             }
         }
 
+        static OffHeapIEnumerable<T> Create<T>(IEnumerable<T> input, bool typed)
+        {
+            return typed ? new TypedOffHeapIEnumerable<T>(input) : new OffHeapIEnumerable<T>(input);
+        }
+
         [TestCase(10)]
         [TestCase(100)]
         [TestCase(1000)]
@@ -87,7 +92,7 @@ namespace OffHeapStorage.tests
         }
 
         [Test]
-        public void RoundTripsAllSupportedTypes()
+        public void RoundTripsAllSupportedTypes([Values] bool typed)
         {
             var input = Enumerable.Range(0, 5000).Select(i => new AllTypes
             {
@@ -99,7 +104,7 @@ namespace OffHeapStorage.tests
                 D = i / 7d
             }).ToList();
 
-            using var storage = new OffHeapIEnumerable<AllTypes>(input);
+            using var storage = Create(input, typed);
             var output = storage.ToList();
 
             Assert.That(output.Count, Is.EqualTo(input.Count));
@@ -115,18 +120,18 @@ namespace OffHeapStorage.tests
         }
 
         [Test]
-        public void CanEnumerateMultipleTimes()
+        public void CanEnumerateMultipleTimes([Values] bool typed)
         {
-            using var storage = new OffHeapIEnumerable<TestClass>(GetIEnumerableOfTestClass(100));
+            using var storage = Create(GetIEnumerableOfTestClass(100), typed);
 
             Assert.That(storage.Select(x => x.A), Is.EqualTo(Enumerable.Range(0, 100)));
             Assert.That(storage.Select(x => x.A), Is.EqualTo(Enumerable.Range(0, 100)));
         }
 
         [Test]
-        public void InterleavedEnumeratorsAreIndependent()
+        public void InterleavedEnumeratorsAreIndependent([Values] bool typed)
         {
-            using var storage = new OffHeapIEnumerable<TestClass>(GetIEnumerableOfTestClass(1000));
+            using var storage = Create(GetIEnumerableOfTestClass(1000), typed);
 
             var pairs = storage.Zip(storage.Skip(1), (a, b) => b.A - a.A).ToList();
 
@@ -135,17 +140,17 @@ namespace OffHeapStorage.tests
         }
 
         [Test]
-        public void EmptyInputProducesEmptyStorage()
+        public void EmptyInputProducesEmptyStorage([Values] bool typed)
         {
-            using var storage = new OffHeapIEnumerable<TestClass>(Enumerable.Empty<TestClass>());
+            using var storage = Create(Enumerable.Empty<TestClass>(), typed);
 
             Assert.That(storage, Is.Empty);
         }
 
         [Test]
-        public void EnumeratingAfterDisposeThrows()
+        public void EnumeratingAfterDisposeThrows([Values] bool typed)
         {
-            var storage = new OffHeapIEnumerable<TestClass>(GetIEnumerableOfTestClass(10));
+            var storage = Create(GetIEnumerableOfTestClass(10), typed);
             Assert.That(storage.ByteCount, Is.GreaterThan(0));
 
             storage.Dispose();

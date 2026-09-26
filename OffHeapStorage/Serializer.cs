@@ -4,7 +4,13 @@ using System.IO;
 
 namespace OffHeapStorage
 {
-    public class Serializer<T>
+    public interface ISerializer<T>
+    {
+        void Serialize(T obj);
+        IEnumerable<T> DeserializeStream();
+    }
+
+    public class Serializer<T> : ISerializer<T>
     {
         private ObjectSerializationInfo serializationInfo;
         private Stream _stream;
