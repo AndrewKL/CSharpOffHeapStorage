@@ -37,7 +37,7 @@ namespace OffHeapStorage.tests
         //[TestCase(1000000000)]
         public void CanCreateOffHeapStorage(int sizeOfIEnumerable)
         {
-            var storage = new OffHeapIEnumerable<TestClass>(GetIEnumerableOfTestClass(sizeOfIEnumerable));
+            using var storage = new OffHeapIEnumerable<TestClass>(GetIEnumerableOfTestClass(sizeOfIEnumerable));
 
             Assert.That(storage.CountIEnumerable(), Is.EqualTo(sizeOfIEnumerable));
         }
@@ -99,7 +99,8 @@ namespace OffHeapStorage.tests
                 D = i / 7d
             }).ToList();
 
-            var output = new OffHeapIEnumerable<AllTypes>(input).ToList();
+            using var storage = new OffHeapIEnumerable<AllTypes>(input);
+            var output = storage.ToList();
 
             Assert.That(output.Count, Is.EqualTo(input.Count));
             for (int i = 0; i < input.Count; i++)
@@ -116,7 +117,7 @@ namespace OffHeapStorage.tests
         [Test]
         public void CanEnumerateMultipleTimes()
         {
-            var storage = new OffHeapIEnumerable<TestClass>(GetIEnumerableOfTestClass(100));
+            using var storage = new OffHeapIEnumerable<TestClass>(GetIEnumerableOfTestClass(100));
 
             Assert.That(storage.Select(x => x.A), Is.EqualTo(Enumerable.Range(0, 100)));
             Assert.That(storage.Select(x => x.A), Is.EqualTo(Enumerable.Range(0, 100)));
@@ -125,7 +126,7 @@ namespace OffHeapStorage.tests
         [Test]
         public void InterleavedEnumeratorsAreIndependent()
         {
-            var storage = new OffHeapIEnumerable<TestClass>(GetIEnumerableOfTestClass(1000));
+            using var storage = new OffHeapIEnumerable<TestClass>(GetIEnumerableOfTestClass(1000));
 
             var pairs = storage.Zip(storage.Skip(1), (a, b) => b.A - a.A).ToList();
 
@@ -136,9 +137,20 @@ namespace OffHeapStorage.tests
         [Test]
         public void EmptyInputProducesEmptyStorage()
         {
-            var storage = new OffHeapIEnumerable<TestClass>(Enumerable.Empty<TestClass>());
+            using var storage = new OffHeapIEnumerable<TestClass>(Enumerable.Empty<TestClass>());
 
             Assert.That(storage, Is.Empty);
+        }
+
+        [Test]
+        public void EnumeratingAfterDisposeThrows()
+        {
+            var storage = new OffHeapIEnumerable<TestClass>(GetIEnumerableOfTestClass(10));
+            Assert.That(storage.ByteCount, Is.GreaterThan(0));
+
+            storage.Dispose();
+
+            Assert.Throws<ObjectDisposedException>(() => storage.ToList());
         }
 
 

@@ -1,11 +1,15 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace OffHeapStorage
 {
-    public class OffHeapIEnumerable<T> : IEnumerable<T>
+    /// <summary>
+    /// Stores a sequence serialized into natively allocated memory. Dispose to release that memory.
+    /// </summary>
+    public class OffHeapIEnumerable<T> : IEnumerable<T>, IDisposable
     {
-        private readonly Stream _stream;
+        private readonly MemoryTributary _stream;
         private Serializer<T> _serializer;
 
         public OffHeapIEnumerable(IEnumerable<T> input)
@@ -17,7 +21,23 @@ namespace OffHeapStorage
             {
                 _serializer.Serialize(obj);
             }
-        }       
+        }
+
+        /// <summary>
+        /// Serialized size of the stored data, in bytes
+        /// </summary>
+        public long ByteCount
+        {
+            get { return _stream.Length; }
+        }
+
+        /// <summary>
+        /// Native memory reserved for the stored data, in bytes
+        /// </summary>
+        public long AllocatedBytes
+        {
+            get { return _stream.AllocatedBytes; }
+        }
 
         public IEnumerator<T> GetEnumerator()
         {
@@ -29,6 +49,10 @@ namespace OffHeapStorage
             return GetEnumerator();
         }
 
+        public void Dispose()
+        {
+            _stream.Dispose();
+        }
 
     }
 
