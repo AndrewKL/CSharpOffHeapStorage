@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using NUnit.Framework;
+﻿using NUnit.Framework;
 
 namespace OffHeapStorage.tests
 {
@@ -26,16 +21,31 @@ namespace OffHeapStorage.tests
         {
             var spec = new ObjectSerializationInfo(typeof (TestObj));
 
-            Assert.AreEqual(5,spec.PropertyList.Count);
+            Assert.That(spec.PropertyList.Count, Is.EqualTo(5));
 
             var newObj = spec.Constructor();
-            Assert.AreEqual(typeof(TestObj),newObj.GetType());
+            Assert.That(newObj.GetType(), Is.EqualTo(typeof(TestObj)));
 
             foreach(var prop in spec.PropertyList)
             {
-                Assert.NotNull(prop.Getter);
-                Assert.NotNull(prop.Setter);
+                Assert.That(prop.Getter, Is.Not.Null);
+                Assert.That(prop.Setter, Is.Not.Null);
             }
+        }
+
+        public class DerivedObj : TestObj
+        {
+            public double F { get; set; }
+            public int ReadOnly { get { return 42; } }
+            public long Unsupported { get; set; }
+        }
+
+        [Test]
+        public void IncludesInheritedAndSkipsReadOnlyOrUnsupportedProperties()
+        {
+            var spec = new ObjectSerializationInfo(typeof(DerivedObj));
+
+            Assert.That(spec.PropertyList.Count, Is.EqualTo(6));
         }
     }
 }

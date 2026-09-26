@@ -122,7 +122,7 @@ namespace System.IO
                 throw new ArgumentOutOfRangeException("count", lcount, "Number of bytes to copy cannot be negative.");
             }
 
-            long remaining = (length - Position);
+            long remaining = Math.Max(0, length - Position);
             if (lcount > remaining)
                 lcount = remaining;
 
@@ -137,8 +137,8 @@ namespace System.IO
 
             int read = 0;
             long copysize = 0;
-            do
-	        {
+            while (lcount > 0)
+            {
                 copysize = Math.Min(lcount, (blockSize - blockOffset));
                 Buffer.BlockCopy(block, (int)blockOffset, buffer, offset, (int)copysize);
                 lcount -= copysize;
@@ -146,8 +146,7 @@ namespace System.IO
 
                 read += (int)copysize;
                 Position += copysize;
-
-	        } while (lcount > 0);
+            }
 
             return read;
                
@@ -164,7 +163,7 @@ namespace System.IO
                     Position += offset;
                     break;
                 case SeekOrigin.End:
-                    Position = Length - offset;
+                    Position = Length + offset;
                     break;
             }
             return Position;
@@ -181,7 +180,7 @@ namespace System.IO
             int copysize;
             try
             {
-                do
+                while (count > 0)
                 {
                     copysize = Math.Min(count, (int)(blockSize - blockOffset));
 
@@ -192,13 +191,12 @@ namespace System.IO
                     offset += copysize;
 
                     Position += copysize;
-
-                } while (count > 0);
+                }
             }
-            catch (Exception e)
+            catch
             {
                 Position = initialPosition;
-                throw e;
+                throw;
             }
         }
 
@@ -251,7 +249,7 @@ namespace System.IO
             long firstposition = Position;
             Position = 0;
             byte[] destination = new byte[Length];
-            Read(destination, 0, (int)Length);
+            ReadExactly(destination, 0, (int)Length);
             Position = firstposition;
             return destination;
         }
@@ -265,13 +263,14 @@ namespace System.IO
         {
             byte[] buffer = new byte[4096];
             int read;
-            do
+            while (length > 0)
             {
                 read = source.Read(buffer, 0, (int)Math.Min(4096, length));
+                if (read == 0)
+                    break;
                 length -= read;
                 this.Write(buffer, 0, read);
-
-            } while (length > 0);
+            }
         }
 
         /// <summary>
