@@ -1,11 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data.SqlTypes;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OffHeapStorage
 {
@@ -18,13 +15,11 @@ namespace OffHeapStorage
         public ObjectSerializationInfo(Type type)
         {
             var typeInfo = type.GetTypeInfo();
-            var props = typeInfo.DeclaredProperties.Where(x =>
-                   x.PropertyType == typeof(int)
-                || x.PropertyType == typeof(string)
-                || x.PropertyType == typeof(decimal)
-                || x.PropertyType == typeof(float)
-                || x.PropertyType == typeof(double)
-                || x.PropertyType == typeof(bool)).ToList();
+            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(x => x.CanRead && x.CanWrite
+                    && x.GetIndexParameters().Length == 0
+                    && PropertySerializationInfo.MapTypeToTypeEnum.ContainsKey(x.PropertyType))
+                .ToList();
 
             PropertyList = new List<PropertySerializationInfo>();
 
@@ -38,14 +33,15 @@ namespace OffHeapStorage
                     PropType = PropertySerializationInfo.MapTypeToTypeEnum[prop.PropertyType]
                 });
             }
-            var types = new Type[0];
             Constructor = GetConstructor(typeInfo);
         }
 
         public static Func<object> GetConstructor(TypeInfo typeInfo)
         {
-            var types = new Type[0];
-            var expr = Expression.New(typeInfo.GetConstructor(types));
+            var ctor = typeInfo.GetConstructor(Type.EmptyTypes);
+            if (ctor == null)
+                throw new ArgumentException("Type " + typeInfo.FullName + " must have a public parameterless constructor.");
+            var expr = Expression.New(ctor);
 
             return Expression.Lambda<Func<object>>(expr).Compile();
         } 

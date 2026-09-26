@@ -1,10 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace OffHeapStorage
 {
@@ -25,6 +21,7 @@ namespace OffHeapStorage
 
         public void Serialize(T obj)
         {
+            _stream.Position = _stream.Length;
             foreach (var prop in serializationInfo.PropertyList)
             {
 
@@ -43,7 +40,10 @@ namespace OffHeapStorage
                         _binaryWriter.Write((float)prop.Getter(obj));
                         break;
                     case (PropertySerializationTypeEnum.String):
-                        _binaryWriter.Write((string)prop.Getter(obj));
+                        var str = (string)prop.Getter(obj);
+                        _binaryWriter.Write(str != null);
+                        if (str != null)
+                            _binaryWriter.Write(str);
                         break;
                     case (PropertySerializationTypeEnum.Double):
                         _binaryWriter.Write((double)prop.Getter(obj));
@@ -54,10 +54,14 @@ namespace OffHeapStorage
 
         public IEnumerable<T> DeserializeStream()
         {
-            _stream.Position = 0;
-            while (_stream.Position != _stream.Length)
+            // Track position per enumeration so interleaved enumerators don't corrupt each other
+            long position = 0;
+            while (position < _stream.Length)
             {
-                yield return Deserialize();
+                _stream.Position = position;
+                var obj = Deserialize();
+                position = _stream.Position;
+                yield return obj;
             }
         } 
         
@@ -82,7 +86,7 @@ namespace OffHeapStorage
                         prop.Setter(obj, _binaryReader.ReadSingle());
                         break;
                     case (PropertySerializationTypeEnum.String):
-                        prop.Setter(obj, _binaryReader.ReadString());
+                        prop.Setter(obj, _binaryReader.ReadBoolean() ? _binaryReader.ReadString() : null);
                         break;
                     case (PropertySerializationTypeEnum.Double):
                         prop.Setter(obj, _binaryReader.ReadDouble());
