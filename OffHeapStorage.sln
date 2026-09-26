@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OffHeapStorage", "OffHeapSt
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OffHeapStorage.tests", "OffHeapStorage.tests\OffHeapStorage.tests.csproj", "{B97679BE-1703-4903-8FF1-8F689EB21DE2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OffHeapStorage.Benchmark", "OffHeapStorage.Benchmark\OffHeapStorage.Benchmark.csproj", "{07249205-6927-48C9-AC26-A3BF44331B8A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,18 @@ Global
 		{B97679BE-1703-4903-8FF1-8F689EB21DE2}.Release|x64.Build.0 = Release|Any CPU
 		{B97679BE-1703-4903-8FF1-8F689EB21DE2}.Release|x86.ActiveCfg = Release|Any CPU
 		{B97679BE-1703-4903-8FF1-8F689EB21DE2}.Release|x86.Build.0 = Release|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Debug|x64.Build.0 = Debug|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Debug|x86.Build.0 = Debug|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Release|x64.ActiveCfg = Release|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Release|x64.Build.0 = Release|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Release|x86.ActiveCfg = Release|Any CPU
+		{07249205-6927-48C9-AC26-A3BF44331B8A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

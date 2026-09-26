@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -6,30 +6,44 @@ using System.Runtime.InteropServices;
 namespace System.IO
 {
     /// <summary>
-    /// MemoryTributary is a re-implementation of MemoryStream that uses a dynamic list of byte arrays as a backing store, instead of a single byte array, the allocation
-    /// of which will fail for relatively small streams as it requires contiguous memory.
+    /// MemoryTributary is a re-implementation of MemoryStream that uses a dynamic list of natively allocated memory blocks as a backing store,
+    /// instead of a single managed byte array. The blocks live outside the GC heap, so the garbage collector never scans or moves them.
+    /// Native memory is only released by Dispose (or, as a fallback, the finalizer), so always dispose instances when done.
     /// </summary>
-    public class MemoryTributary : Stream       /* http://msdn.microsoft.com/en-us/library/system.io.stream.aspx */
+    public unsafe class MemoryTributary : Stream       /* http://msdn.microsoft.com/en-us/library/system.io.stream.aspx */
     {
+        public const int DefaultBlockSize = 1 << 20;
+
         #region Constructors
 
-        public MemoryTributary()
+        public MemoryTributary() : this(0, DefaultBlockSize)
         {
-            Position = 0;
         }
 
-        public MemoryTributary(byte[] source)
+        public MemoryTributary(byte[] source) : this(0, DefaultBlockSize)
         {
             this.Write(source, 0, source.Length);
             Position = 0;
         }
 
-        public MemoryTributary(int length)
+        public MemoryTributary(int length) : this(length, DefaultBlockSize)
         {
+        }
+
+        public MemoryTributary(long length, int blockSize)
+        {
+            if (blockSize <= 0)
+                throw new ArgumentOutOfRangeException("blockSize", blockSize, "Block size must be positive.");
+            this.blockSize = blockSize;
             SetLength(length);
-            Position = length;
-            byte[] d = block;   //access block to prompt the allocation of memory
+            if (length > 0)
+                Block((length - 1) / blockSize);   //prompt the allocation of memory
             Position = 0;
+        }
+
+        ~MemoryTributary()
+        {
+            Dispose(false);
         }
 
         #endregion
@@ -38,17 +52,17 @@ namespace System.IO
 
         public override bool CanRead
         {
-            get { return true; }
+            get { return !disposed; }
         }
 
         public override bool CanSeek
         {
-            get { return true; }
+            get { return !disposed; }
         }
 
         public override bool CanWrite
         {
-            get { return true; }
+            get { return !disposed; }
         }
 
         #endregion
@@ -57,10 +71,22 @@ namespace System.IO
 
         public override long Length
         {
-            get { return length; }
+            get
+            {
+                ObjectDisposedException.ThrowIf(disposed, this);
+                return length;
+            }
         }
 
         public override long Position { get; set; }
+
+        /// <summary>
+        /// The number of bytes of native memory currently allocated by this stream
+        /// </summary>
+        public long AllocatedBytes
+        {
+            get { return (long)blocks.Count * blockSize; }
+        }
 
         #endregion
 
@@ -68,41 +94,25 @@ namespace System.IO
 
         protected long length = 0;
 
-        protected long blockSize = 65536;
+        protected readonly int blockSize;
 
-        protected List<byte[]> blocks = new List<byte[]>();
+        protected readonly List<IntPtr> blocks = new List<IntPtr>();
+
+        private bool disposed;
 
         #endregion
 
         #region Internal Properties
 
-        /* Use these properties to gain access to the appropriate block of memory for the current Position */
-
         /// <summary>
-        /// The block of memory currently addressed by Position
+        /// Returns a pointer to the given block, allocating (zeroed) blocks up to and including it as needed
         /// </summary>
-        protected byte[] block
+        protected byte* Block(long blockId)
         {
-            get
-            {
-                while (blocks.Count <= blockId)
-                    blocks.Add(new byte[blockSize]);
-                return blocks[(int)blockId];
-            }
-        }
-        /// <summary>
-        /// The id of the block currently addressed by Position
-        /// </summary>
-        protected long blockId
-        {
-            get { return Position / blockSize; }
-        }
-        /// <summary>
-        /// The offset of the byte currently addressed by Position, into the block that contains it
-        /// </summary>
-        protected long blockOffset
-        {
-            get { return Position % blockSize; }
+            ObjectDisposedException.ThrowIf(disposed, this);
+            while (blocks.Count <= blockId)
+                blocks.Add((IntPtr)NativeMemory.AllocZeroed((nuint)blockSize));
+            return (byte*)blocks[(int)blockId];
         }
 
         #endregion
@@ -115,41 +125,25 @@ namespace System.IO
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            long lcount = (long)count;
+            ValidateBufferArguments(buffer, offset, count);
+            return Read(new Span<byte>(buffer, offset, count));
+        }
 
-            if (lcount < 0)
-            {
-                throw new ArgumentOutOfRangeException("count", lcount, "Number of bytes to copy cannot be negative.");
-            }
+        public override int Read(Span<byte> buffer)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
 
-            long remaining = Math.Max(0, length - Position);
-            if (lcount > remaining)
-                lcount = remaining;
-
-            if (buffer == null)
-            {
-                throw new ArgumentNullException("buffer", "Buffer cannot be null.");
-            }
-            if (offset < 0)
-            {
-                throw new ArgumentOutOfRangeException("offset",offset,"Destination offset cannot be negative.");
-            }
-
+            int toRead = (int)Math.Min(buffer.Length, Math.Max(0, length - Position));
             int read = 0;
-            long copysize = 0;
-            while (lcount > 0)
+            while (read < toRead)
             {
-                copysize = Math.Min(lcount, (blockSize - blockOffset));
-                Buffer.BlockCopy(block, (int)blockOffset, buffer, offset, (int)copysize);
-                lcount -= copysize;
-                offset += (int)copysize;
-
-                read += (int)copysize;
+                int blockOffset = (int)(Position % blockSize);
+                int copysize = Math.Min(toRead - read, blockSize - blockOffset);
+                new ReadOnlySpan<byte>(Block(Position / blockSize) + blockOffset, copysize).CopyTo(buffer.Slice(read));
+                read += copysize;
                 Position += copysize;
             }
-
             return read;
-               
         }
 
         public override long Seek(long offset, SeekOrigin origin)
@@ -171,25 +165,46 @@ namespace System.IO
 
         public override void SetLength(long value)
         {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (value < 0)
+                throw new ArgumentOutOfRangeException("value", value, "Length cannot be negative.");
+
+            if (value < length)
+            {
+                // Free whole blocks past the new end and zero the tail of the last one, so growing again reads zeros
+                long neededBlocks = (value + blockSize - 1) / blockSize;
+                for (int i = blocks.Count - 1; i >= neededBlocks; i--)
+                {
+                    NativeMemory.Free((void*)blocks[i]);
+                    blocks.RemoveAt(i);
+                }
+                int tailOffset = (int)(value % blockSize);
+                if (tailOffset != 0 && blocks.Count > 0)
+                    new Span<byte>((byte*)blocks[blocks.Count - 1] + tailOffset, blockSize - tailOffset).Clear();
+            }
             length = value;
         }
 
         public override void Write(byte[] buffer, int offset, int count)
         {
+            ValidateBufferArguments(buffer, offset, count);
+            Write(new ReadOnlySpan<byte>(buffer, offset, count));
+        }
+
+        public override void Write(ReadOnlySpan<byte> buffer)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+
             long initialPosition = Position;
-            int copysize;
             try
             {
-                while (count > 0)
+                int written = 0;
+                while (written < buffer.Length)
                 {
-                    copysize = Math.Min(count, (int)(blockSize - blockOffset));
-
-                    EnsureCapacity(Position + copysize);
-
-                    Buffer.BlockCopy(buffer, (int)offset, block, (int)blockOffset, copysize);
-                    count -= copysize;
-                    offset += copysize;
-
+                    int blockOffset = (int)(Position % blockSize);
+                    int copysize = Math.Min(buffer.Length - written, blockSize - blockOffset);
+                    buffer.Slice(written, copysize).CopyTo(new Span<byte>(Block(Position / blockSize) + blockOffset, copysize));
+                    written += copysize;
                     Position += copysize;
                 }
             }
@@ -198,14 +213,16 @@ namespace System.IO
                 Position = initialPosition;
                 throw;
             }
+            EnsureCapacity(Position);
         }
 
         public override int ReadByte()
         {
+            ObjectDisposedException.ThrowIf(disposed, this);
             if (Position >= length)
                 return -1;
 
-            byte b = block[blockOffset];
+            byte b = Block(Position / blockSize)[Position % blockSize];
             Position++;
 
             return b;
@@ -213,9 +230,9 @@ namespace System.IO
 
         public override void WriteByte(byte value)
         {
-            EnsureCapacity(Position + 1);
-            block[blockOffset] = value;
+            Block(Position / blockSize)[Position % blockSize] = value;
             Position++;
+            EnsureCapacity(Position);
         }
 
         protected void EnsureCapacity(long intended_length)
@@ -228,10 +245,16 @@ namespace System.IO
 
         #region IDispose
 
-        /* http://msdn.microsoft.com/en-us/library/fs2xkftw.aspx */
         protected override void Dispose(bool disposing)
         {
-            /* We do not currently use unmanaged resources */
+            if (!disposed)
+            {
+                foreach (var block in blocks)
+                    NativeMemory.Free((void*)block);
+                blocks.Clear();
+                length = 0;
+                disposed = true;
+            }
             base.Dispose(disposing);
         }
 
@@ -240,7 +263,7 @@ namespace System.IO
         #region Public Additional Helper Methods
 
         /// <summary>
-        /// Returns the entire content of the stream as a byte array. This is not safe because the call to new byte[] may 
+        /// Returns the entire content of the stream as a byte array. This is not safe because the call to new byte[] may
         /// fail if the stream is large enough. Where possible use methods which operate on streams directly instead.
         /// </summary>
         /// <returns>A byte[] containing the current data in the stream</returns>
